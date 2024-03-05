@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Iterable
+import os.path as osp
 
 from hydra.core.config_store import ConfigStore
 from hydra.conf import RunDir
@@ -8,7 +9,6 @@ from hydra.conf import RunDir
 
 @dataclass
 class CustomHydraRunDir(RunDir):
-    # dir: str = './outputs/${run.name}/${now:%Y-%m-%d--%H-%M-%S}'
     dir: str = './outputs/${run.name}/single'
 
 
@@ -19,7 +19,7 @@ class RunConfig:
     mixed_precision: str = 'fp16'  # 'no'
     cpu: bool = False
     seed: int = 42
-    val_before_training: bool = True # XH: Change to false
+    val_before_training: bool = True
     vis_before_training: bool = True
     limit_train_batches: Optional[int] = None
     limit_val_batches: Optional[int] = None
@@ -37,7 +37,7 @@ class RunConfig:
     image_path: str = ''            # the path to the images for running demo, can be a single file or a glob pattern
 
     # abs path to working dir
-    code_dir_abs: str = "/BS/xxie-2/work/HDM"
+    code_dir_abs: str = osp.dirname(osp.dirname(osp.abspath(__file__)))
 
     # Inference configs
     num_inference_steps: int = 1000
@@ -50,7 +50,7 @@ class RunConfig:
     save_name: str = 'sample'  # XH: additional save name
     redo: bool = False
 
-    # for parallel sampling
+    # for parallel sampling in slurm
     batch_start: int = 0
     batch_end: Optional[int] = None
 
@@ -62,10 +62,9 @@ class RunConfig:
     coloring_sample_dir: Optional[str] = None
 
     sample_mode: str = 'sample'  # whether from noise or from some intermediate steps
-    sample_noise_step: int = 100  # add noise to GT up to some steps, and then denoise
+    sample_noise_step: int = 500  # add noise to GT up to some steps, and then denoise
     sample_save_gt: bool = True
 
-    early_stop: int = -10 # for rebuttal: early stop the first stage
 
 @dataclass
 class LoggingConfig:
@@ -74,23 +73,16 @@ class LoggingConfig:
 
 
 
-
-
 @dataclass
 class PointCloudProjectionModelConfig:
     # Feature extraction arguments
     image_size: int = '${dataset.image_size}'
-    image_feature_model: str = 'vit_small_patch16_224_msn'  # or 'vit_base_patch16_224_mae' or 'identity'
+    image_feature_model: str = 'vit_base_patch16_224_mae' # or 'vit_small_patch16_224_msn' or 'identity'
     use_local_colors: bool = True
     use_local_features: bool = True
     use_global_features: bool = False
     use_mask: bool = True
     use_distance_transform: bool = True
-
-    # TODO
-    # # New for the rebuttal
-    # use_naive_projection: bool = False
-    # use_feature_blur: bool = False
 
     # Point cloud data arguments. Note these are here because the processing happens
     # inside the model, rather than inside the dataset.
@@ -105,21 +97,15 @@ class PointCloudProjectionModelConfig:
     load_sample_init: bool = False  # load init samples from file
     sample_init_scale: float = 1.0  # scale the initial pc samples
     test_init_with_gtpc: bool = False  # test time init samples with GT samples
-    consistent_center: bool = False  # use consistent center prediction by CCD-3DR
+    consistent_center: bool = True  # use consistent center prediction by CCD-3DR
     voxel_resolution_multiplier: float = 1  # increase network voxel resolution
 
     # predict binary segmentation
-    predict_binary: bool = False
-    lw_binary: float = 3.0  # to have roughly the same magnitude of the noise loss
+    predict_binary: bool = False # True for stage 1 model, False for others
+    lw_binary: float = 3.0  # to have roughly the same magnitude of the binary segmentation loss
     # for separate model
     binary_training_noise_std: float = 0.1  # from github doc for predicting color
     self_conditioning: bool = False
-
-    # add noise to camera pose
-    cam_noise_std: float = 0.0
-
-    # For PVCNN-ae
-    v2v_loss: float = -1.0
 
 @dataclass
 class PVCNNAEModelConfig(PointCloudProjectionModelConfig):
@@ -133,7 +119,6 @@ class PVCNNAEModelConfig(PointCloudProjectionModelConfig):
 
 @dataclass
 class PointCloudDiffusionModelConfig(PointCloudProjectionModelConfig):
-    # model_name: str = 'pc2-diff' # added by XH
     model_name: str = 'pc2-diff-ho'  # default as behave
 
     # Diffusion arguments
@@ -148,21 +133,13 @@ class PointCloudDiffusionModelConfig(PointCloudProjectionModelConfig):
 
     dataset_type: str = '${dataset.type}'
 
-    num_blocks: int = 2 # for stacked pvcnn model
-
 @dataclass
 class CrossAttnHOModelConfig(PointCloudDiffusionModelConfig):
     model_name: str = 'diff-ho-attn'
 
-    attn_type: str = 'simple-cross'
+    attn_type: str = 'coord3d+posenc-learnable'
     attn_weight: float = 1.0
-
-    # additional config for combined diffusion
-    model_sep_name: str = 'sround3_coord3d-posenc-learnable'
-    model_joint_name: str = 'sround2_segm-sep'
-    model_joint_weight: float = 1.0
-    model_sep_weight: float = 1.0
-    point_visible_test: str = 'single' # to compute point visibility: use all points or only human/object points
+    point_visible_test: str = 'combine'  # To compute point visibility: use all points or only human/object points
 
 
 @dataclass
@@ -216,7 +193,6 @@ class CO3DConfig(PointCloudDatasetConfig):
     mask_images: bool = '${model.use_mask}'
 
 
-# TODO
 @dataclass
 class ShapeNetR2N2Config(PointCloudDatasetConfig):
     # added by XH
@@ -228,8 +204,7 @@ class ShapeNetR2N2Config(PointCloudDatasetConfig):
     r2n2_dir: str = "/BS/databases20/3d-r2n2"
     shapenet_dir: str = "/BS/chiban2/work/data_shapenet/ShapeNetCore.v1"
     preprocessed_r2n2_dir: str = "${dataset.root}/r2n2_preprocessed_renders"
-    splits_file: str = "/BS/xxie-2/work/pc2-diff/experiments/configs/splits/r2n2-split-${dataset.category}.json"
-    # splits_file: str = "${dataset.root}/r2n2_standard_splits_from_ShapeNet_taxonomy.json"
+    splits_file: str = "${dataset.root}/r2n2_standard_splits_from_ShapeNet_taxonomy.json"
     # splits_file: str = "${dataset.root}/pix2mesh_splits_val05.json"  # <-- incorrect
     scale_factor: float = 7.0
     point_cloud_filename: str = 'pointcloud_r2n2.npz'  # should use 'pointcloud_mesh.npz'
@@ -243,7 +218,7 @@ class BehaveDatasetConfig(PointCloudDatasetConfig):
 
     fix_sample: bool = True
     behave_dir: str = "/BS/xxie-5/static00/behave_release/sequences/"
-    split_file: str = "/BS/xxie-2/work/chore-video/splits/behave-split-online-sample.pkl"
+    split_file: str = "" # specify you dataset split file here
     scale_factor: float = 7.0  # use the same as shapenet
     sample_ratio_hum: float = 0.5
     image_size: int = 224
@@ -271,6 +246,7 @@ class BehaveDatasetConfig(PointCloudDatasetConfig):
 
 @dataclass
 class ShapeDatasetConfig(BehaveDatasetConfig):
+    "the dataset to train AE for aligned shapes"
     type: str = 'shape'
     fix_sample: bool = False
     split_file: str = "/BS/xxie-2/work/pc2-diff/experiments/splits/shapes-chair.pkl"
@@ -330,10 +306,9 @@ class ExponentialMovingAverageConfig:
 class OptimizerConfig:
     type: str
     name: str
-    # lr: float = 1e-3
-    lr: float = 3e-4 # XH: update to our own lr
+    lr: float = 3e-4
     weight_decay: float = 0.0
-    scale_learning_rate_with_batch_size: bool = False  # XH: this is a linear scale up sceme
+    scale_learning_rate_with_batch_size: bool = False
     gradient_accumulation_steps: int = 1
     clip_grad_norm: Optional[float] = 50.0  # 5.0
     kwargs: Dict = field(default_factory=lambda: dict())
