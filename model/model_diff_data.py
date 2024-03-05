@@ -130,8 +130,7 @@ class ConditionalPCDiffusionSeparateSegm(ConditionalPCDiffusionBehave):
             embed_dim=point_cloud_model_embed_dim,
             in_channels=self.in_channels,
             out_channels=self.out_channels - 1,  # not predicting binary from this anymore
-            voxel_resolution_multiplier=kwargs.get('voxel_resolution_multiplier', 1),
-            num_blocks=kwargs.get('num_blocks', -1)
+            voxel_resolution_multiplier=kwargs.get('voxel_resolution_multiplier', 1)
         )
 
     def forward_train(

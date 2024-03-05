@@ -5,7 +5,83 @@ import torch
 
 from .base_data import BaseDataset
 from .behave_paths import DataPaths
-from .img_utils import compute_translation, masks2bbox
+from .img_utils import compute_translation, masks2bbox, crop
+
+
+def padTo_4x3(rgb, person_mask, obj_mask, aspect_ratio=0.75):
+    """
+    pad images to have 4:3 aspect ratio
+    :param rgb: (H, W, 3)
+    :param person_mask:
+    :param obj_mask:
+    :return: all images at the given aspect ratio
+    """
+    h, w = rgb.shape[:2]
+    if w > h * 1/aspect_ratio:
+        # pad top
+        h_4x3 = int(w * aspect_ratio)
+        pad_top = h_4x3 - h
+        rgb_pad = np.pad(rgb, ((pad_top, 0), (0, 0), (0, 0)))
+        person_mask = np.pad(person_mask, ((pad_top, 0), (0, 0))) if person_mask is not None else None
+        obj_mask = np.pad(obj_mask, ((pad_top, 0), (0, 0))) if obj_mask is not None else None
+    else:
+        # pad two side
+        w_new = np.lcm.reduce([h * 2, 16]) # least common multiplier
+        h_4x3 = int(w_new * aspect_ratio)
+        pad_top = h_4x3 - h
+        pad_left = (w_new - w) // 2
+        pad_right = w_new - w - pad_left
+        rgb_pad = np.pad(rgb, ((pad_top, 0), (pad_left, pad_right), (0, 0)))
+        obj_mask = np.pad(obj_mask, ((pad_top, 0), (pad_left, pad_right))) if obj_mask is not None else None
+        person_mask = np.pad(person_mask, ((pad_top, 0), (pad_left, pad_right))) if person_mask is not None else None
+    return rgb_pad, obj_mask, person_mask
+
+
+def recrop_input(rgb, person_mask, obj_mask, dataset_name='behave'):
+    "recrop input images"
+    exp_ratio = 1.42
+    if dataset_name == 'behave':
+        mean_center = np.array([1008, 995])  # mean RGB image crop center
+        behave_size = (2048, 1536)
+        new_size = (int(750 * exp_ratio), int(exp_ratio * 750))
+    else:
+        mean_center = np.array([904, 668])  # mean RGB image crop center for bottle sequences of ICAP
+        behave_size = (1920, 1080)
+        new_size = (int(593.925 * exp_ratio), int(exp_ratio * 593.925))  # mean width of bottle sequences
+    aspect_ratio = behave_size[1] / behave_size[0]
+    pad_top = mean_center[1] - new_size[0] // 2
+    pad_bottom = behave_size[1] - (mean_center[1] + new_size[0] // 2)
+    pad_left = mean_center[0] - new_size[0] // 2
+    pad_right = behave_size[0] - (mean_center[0] + new_size[0] // 2)
+
+    # First resize to the same aspect ratio
+    if rgb.shape[0] / rgb.shape[1] != aspect_ratio:
+        rgb, obj_mask, person_mask = padTo_4x3(rgb, person_mask, obj_mask, aspect_ratio)
+
+    # Resize to the same size as behave image, to have a comparable pixel size
+    rgb = cv2.resize(rgb, behave_size)
+    mask_ps = cv2.resize(person_mask, behave_size)
+    mask_obj = cv2.resize(obj_mask, behave_size)
+
+    # Crop and resize the human + object patch
+    bmin, bmax = masks2bbox([mask_ps, mask_obj])
+    center = (bmin + bmax) // 2
+    crop_size = int(np.max(bmax - bmin) * exp_ratio)  # larger crop to have background
+    img_crop = cv2.resize(crop(rgb, center, crop_size), new_size)
+    mask_ps = cv2.resize(crop(mask_ps, center, crop_size), new_size)
+    mask_obj = cv2.resize(crop(mask_obj, center, crop_size), new_size)
+
+    # Pad back to have same shape as behave image
+    img_full = np.pad(img_crop, [[pad_top, pad_bottom], [pad_left, pad_right], [0, 0]])
+    mask_ps_full = np.pad(mask_ps, [[pad_top, pad_bottom], [pad_left, pad_right]])
+    mask_obj_full = np.pad(mask_obj, [[pad_top, pad_bottom], [pad_left, pad_right]])
+
+    # Make sure the image shape is the same
+    if img_full.shape[:2] != behave_size[::-1]:
+        img_full = cv2.resize(img_full, behave_size)
+        mask_ps_full = cv2.resize(mask_ps_full, behave_size)
+        mask_obj_full = cv2.resize(mask_obj_full, behave_size)
+    return img_full, mask_ps_full, mask_obj_full
 
 
 class DemoDataset(BaseDataset):
@@ -23,8 +99,11 @@ class DemoDataset(BaseDataset):
         mask_hum, mask_obj = self.load_masks(rgb_file)
 
         rgb_full = cv2.imread(rgb_file)[:, :, ::-1]
+        if rgb_full.shape[:2] not in [(1080, 1920), (1536, 2048)]:
+            # crop and resize the image to behave image size
+            print(f"Recropping the input image and masks for {rgb_file}")
+            rgb_full, mask_hum, mask_obj = recrop_input(rgb_full, mask_hum, mask_obj)
         color_h, color_w = rgb_full.shape[:2]
-        # TODO: preprocess image in case the RGB image size is not the same as BEHAVE image size
 
         # Input to the first stage model: human + object crop
         Kroi, objmask_fullcrop, psmask_fullcrop, rgb_fullcrop = self.crop_full_image(mask_hum.copy(),
