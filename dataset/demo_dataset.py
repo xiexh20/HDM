@@ -97,8 +97,14 @@ class DemoDataset(BaseDataset):
     def __getitem__(self, idx):
         rgb_file = self.data_paths[idx]
         mask_hum, mask_obj = self.load_masks(rgb_file)
-
         rgb_full = cv2.imread(rgb_file)[:, :, ::-1]
+        if rgb_full.shape[:2] != mask_obj.shape[:2]:
+            print(f"The given object mask shape {mask_obj.shape[:2]} does not match the RGB image shape {rgb_full.shape[:2]}")
+            raise ValueError()
+        if rgb_full.shape[:2] != mask_hum.shape[:2]:
+            print(f"The given human mask shape {mask_hum.shape[:2]} does not match the RGB image shape {rgb_full.shape[:2]}")
+            raise ValueError()
+
         if rgb_full.shape[:2] not in [(1080, 1920), (1536, 2048)]:
             # crop and resize the image to behave image size
             print(f"Recropping the input image and masks for {rgb_file}")
