@@ -12,3 +12,5 @@ torch-ema
 tqdm
 transformers
 wandb
+trimesh
+pytorch3d

@@ -128,6 +128,8 @@ def main(cfg: ProjectConfig):
     # Setup model
     runner = DemoRunner(cfg)
 
+    # runner = None # without model initialization, it shows one line of thumbnail
+
     # Setup interface
     demo = gr.Blocks(title="HDM Interaction Reconstruction Demo")
     with demo:

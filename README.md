@@ -1,3 +1,17 @@
+---
+title: Template Free Reconstruction of Human-object Interaction with Procedural Interaction Generation
+metaTitle: HDM
+emoji: 🤗
+colorFrom: yellow
+colorTo: green
+sdk: gradio
+sdk_version: 3.47.1
+python_version: 3.8
+app_file: app.py
+license: other
+pinned: false
+---
+
 # HDM
 Official implementation for Hierarachical Diffusion Model in CVPR24 Template free reconstruction of human object interaction
 
