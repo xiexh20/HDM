@@ -13,4 +13,5 @@ tqdm
 transformers
 wandb
 trimesh
-pytorch3d
+gradio
+"git+https://github.com/facebookresearch/pytorch3d.git"

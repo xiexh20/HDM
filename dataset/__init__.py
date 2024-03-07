@@ -15,16 +15,17 @@ from pytorch3d.implicitron.dataset.json_index_dataset_map_provider_v2 import (
 from pytorch3d.implicitron.tools.config import expand_args_fields
 from pytorch3d.renderer.cameras import CamerasBase
 from torch.utils.data import DataLoader
+from pytorch3d.datasets import R2N2, collate_batched_meshes
 
 from configs.structured import CO3DConfig, DataloaderConfig, ProjectConfig, Optional
-from .exclude_sequence import EXCLUDE_SEQUENCE, LOW_QUALITY_SEQUENCE
 from .utils import DatasetMap
-from .r2n2_my import R2N2Sample, collate_batched_meshes
+
 
 
 def get_dataset(cfg: ProjectConfig):
     
     if cfg.dataset.type == 'co3dv2':
+        from .exclude_sequence import EXCLUDE_SEQUENCE, LOW_QUALITY_SEQUENCE
         dataset_cfg: CO3DConfig = cfg.dataset
         dataloader_cfg: DataloaderConfig = cfg.dataloader
 
@@ -100,6 +101,7 @@ def get_dataset(cfg: ProjectConfig):
         dataloader_val.batch_sampler.drop_last = False
     elif cfg.dataset.type == 'shapenet_r2n2':
         # from ..configs.structured import ShapeNetR2N2Config
+        from .r2n2_my import R2N2Sample
         dataset_cfg: ShapeNetR2N2Config = cfg.dataset
         # for k in dataset_cfg:
         #     print(k)
