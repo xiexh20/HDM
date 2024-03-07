@@ -132,6 +132,9 @@ def main(cfg: ProjectConfig):
     demo = gr.Blocks(title="HDM Interaction Reconstruction Demo")
     with demo:
         gr.Markdown(md_description)
+        gr.HTML("""<h1 style="text-align:center; color:#10768c">HDM Demo</h1>""")
+        gr.HTML("""<h3 style="text-align:center; color:#10768c">Instruction: Upload RGB, human, object masks and then click reconstruct.</h1>""")
+
         # Input data
         with gr.Row():
             input_rgb = gr.Image(label='Input RGB', type='numpy')
@@ -147,20 +150,28 @@ def main(cfg: ProjectConfig):
             pc_plot = gr.Plot(label="Reconstructed point cloud")
             out_pc_download = gr.File(label="3D reconstruction for download") # this allows downloading
 
+        gr.HTML("""<br/>""")
         # Control
         with gr.Row():
-            button_recon = gr.Button("Reconstruct 3D", interactive=True, variant='secondary')
+            button_recon = gr.Button("Start Reconstruction", interactive=True, variant='secondary')
             button_recon.click(fn=partial(inference, runner, cfg),
                                inputs=[input_rgb, input_mask_hum, input_mask_obj, input_std, input_seed],
                                outputs=[pc_plot, out_pc_download])
-
+        gr.HTML("""<br/>""")
         # Example input
-        code_dir = cfg.run.code_dir_abs
+        example_dir = cfg.run.code_dir_abs+"/examples"
+        rgb, ps, obj = 'k1.color.jpg', 'k1.person_mask.png', 'k1.obj_rend_mask.png'
         example_images = gr.Examples([
-            [f"{code_dir}/examples/017450/k1.color.jpg", f"{code_dir}/examples/017450/k1.person_mask.png", f"{code_dir}/examples/017450/k1.obj_rend_mask.png", 3.0, 42],
+            [f"{example_dir}/017450/{rgb}", f"{example_dir}/017450/{ps}", f"{example_dir}/017450/{obj}", 3.0, 42],
+            [f"{example_dir}/002446/{rgb}", f"{example_dir}/002446/{ps}", f"{example_dir}/002446/{obj}", 3.0, 42],
+            [f"{example_dir}/053431/{rgb}", f"{example_dir}/053431/{ps}", f"{example_dir}/053431/{obj}", 3.8, 42],
+            [f"{example_dir}/158107/{rgb}", f"{example_dir}/158107/{ps}", f"{example_dir}/158107/{obj}", 3.8, 42],
+
         ], inputs=[input_rgb, input_mask_hum, input_mask_obj, input_std, input_seed],)
 
-    demo.launch()
+    # demo.launch(share=True)
+    # Enabling queue for runtime>60s, see: https://github.com/tloen/alpaca-lora/issues/60#issuecomment-1510006062
+    demo.queue(concurrency_count=3).launch(share=True)
 
 if __name__ == '__main__':
     main()
