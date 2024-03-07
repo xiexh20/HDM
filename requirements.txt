@@ -14,4 +14,4 @@ transformers
 wandb
 trimesh
 gradio
-"git+https://github.com/facebookresearch/pytorch3d.git"
+pytorch3d@git+https://github.com/facebookresearch/pytorch3d.git
