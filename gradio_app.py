@@ -104,7 +104,7 @@ def inference(runner: DemoRunner, cfg: ProjectConfig, rgb, mask_hum, mask_obj, s
     :return: path to the 3D reconstruction, and an interactive 3D figure for visualizing the point cloud
     """
     # Set random seed
-    training_utils.set_seed(input_seed)
+    training_utils.set_seed(int(input_seed))
 
     data = DemoDataset([], (cfg.dataset.image_size, cfg.dataset.image_size),
                            std_coverage)
@@ -153,6 +153,13 @@ def main(cfg: ProjectConfig):
             button_recon.click(fn=partial(inference, runner, cfg),
                                inputs=[input_rgb, input_mask_hum, input_mask_obj, input_std, input_seed],
                                outputs=[pc_plot, out_pc_download])
+
+        # Example input
+        code_dir = cfg.run.code_dir_abs
+        example_images = gr.Examples([
+            [f"{code_dir}/examples/017450/k1.color.jpg", f"{code_dir}/examples/017450/k1.person_mask.png", f"{code_dir}/examples/017450/k1.obj_rend_mask.png", 3.0, 42],
+        ], inputs=[input_rgb, input_mask_hum, input_mask_obj, input_std, input_seed],)
+
     demo.launch()
 
 if __name__ == '__main__':
