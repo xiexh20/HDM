@@ -24,6 +24,7 @@ from pytorch3d.structures import Pointclouds
 from pytorch3d.renderer import PerspectiveCameras, look_at_view_transform
 from pytorch3d.io import IO
 import torchvision.transforms.functional as TVF
+from huggingface_hub import hf_hub_download
 
 import training_utils
 from configs.structured import ProjectConfig
@@ -34,35 +35,30 @@ from render.pyt3d_wrapper import PcloudRenderer
 
 class DemoRunner:
     def __init__(self, cfg: ProjectConfig):
-        cfg.model.model_name = 'pc2-diff-ho-sepsegm'
+        cfg.model.model_name, cfg.model.predict_binary = 'pc2-diff-ho-sepsegm', True
         model_stage1 = ConditionalPCDiffusionSeparateSegm(**cfg.model)
         cfg.model.model_name, cfg.model.predict_binary = 'diff-ho-attn', False # stage 2 does not predict segmentation
         model_stage2 = CrossAttenHODiffusionModel(**cfg.model)
 
         # Load from checkpoint
-        ckpt_file1 = os.path.join(cfg.run.code_dir_abs, f'outputs/{cfg.run.stage1_name}/single/checkpoint-latest.pth')
+        # ckpt_file1 = os.path.join(cfg.run.code_dir_abs, f'outputs/{cfg.run.stage1_name}/single/checkpoint-latest.pth')
+        # self.load_checkpoint(ckpt_file1, model_stage1)
+        # ckpt_file2 = os.path.join(cfg.run.code_dir_abs, f'outputs/{cfg.run.stage2_name}/single/checkpoint-latest.pth')
+        # self.load_checkpoint(ckpt_file2, model_stage2)
+        # Load ckpt from hf
+        ckpt_file1 = hf_hub_download("xiexh20/HDM-models", f'{cfg.run.stage1_name}.pth')
         self.load_checkpoint(ckpt_file1, model_stage1)
-        ckpt_file2 = os.path.join(cfg.run.code_dir_abs, f'outputs/{cfg.run.stage2_name}/single/checkpoint-latest.pth')
+        ckpt_file2 = hf_hub_download("xiexh20/HDM-models", f'{cfg.run.stage2_name}.pth')
         self.load_checkpoint(ckpt_file2, model_stage2)
+
         self.model_stage1, self.model_stage2 = model_stage1, model_stage2
         self.model_stage1.eval()
         self.model_stage2.eval()
         self.model_stage1.to('cuda')
         self.model_stage2.to('cuda')
 
-        image_files = sorted(glob(cfg.run.image_path))
-        data = DemoDataset(image_files,
-                           (cfg.dataset.image_size, cfg.dataset.image_size),
-                           cfg.dataset.std_coverage)
-        dataloader = DataLoader(data, batch_size=cfg.dataloader.batch_size,
-                                      collate_fn=collate_batched_meshes,
-                                      num_workers=1, shuffle=False)
-        self.dataloader = dataloader
         self.cfg = cfg
         self.io_pc = IO()
-
-        # Set random seed
-        training_utils.set_seed(cfg.run.seed)
 
         # For visualization
         self.renderer = PcloudRenderer(image_size=cfg.dataset.image_size, radius=0.0075)
@@ -76,7 +72,7 @@ class DemoRunner:
             state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
             print('Removed "module." from checkpoint state dict')
         missing_keys, unexpected_keys = model_stage1.load_state_dict(state_dict, strict=False)
-        print(f'Loaded model checkpoint key {key} from {ckpt_file1}')
+        print(f'Loaded model checkpoint {key} from {ckpt_file1}')
         if len(missing_keys):
             print(f' - Missing_keys: {missing_keys}')
         if len(unexpected_keys):
@@ -85,104 +81,35 @@ class DemoRunner:
     @torch.no_grad()
     def run(self):
         "simply run the demo on given images, and save the results"
+        # Set random seed
+        training_utils.set_seed(self.cfg.run.seed)
+
         outdir = osp.join(self.cfg.run.code_dir_abs, 'outputs/demo')
         os.makedirs(outdir, exist_ok=True)
         cfg = self.cfg
 
-        progress_bar = tqdm(self.dataloader)
+        # Init data
+        image_files = sorted(glob(cfg.run.image_path))
+        data = DemoDataset(image_files,
+                           (cfg.dataset.image_size, cfg.dataset.image_size),
+                           cfg.dataset.std_coverage)
+        dataloader = DataLoader(data, batch_size=cfg.dataloader.batch_size,
+                                collate_fn=collate_batched_meshes,
+                                num_workers=1, shuffle=False)
+        dataloader = dataloader
+        progress_bar = tqdm(dataloader)
         for batch_idx, batch in enumerate(progress_bar):
-            progress_bar.set_description(f'Processing batch {batch_idx:4d} / {len(self.dataloader):4d}')
+            progress_bar.set_description(f'Processing batch {batch_idx:4d} / {len(dataloader):4d}')
 
+            out_stage1, out_stage2 = self.forward_batch(batch, cfg)
+
+            bs = len(out_stage1)
             camera_full = PerspectiveCameras(
                 R=torch.stack(batch['R']),
                 T=torch.stack(batch['T']),
                 K=torch.stack(batch['K']),
                 device='cuda',
                 in_ndc=True)
-
-            out_stage1 = self.model_stage1.forward_sample(num_points=cfg.dataset.max_points,
-                                                             camera=camera_full,
-                                                             image_rgb=torch.stack(batch['images']).to('cuda'),
-                                                             mask=torch.stack(batch['masks']).to('cuda'),
-                                                             scheduler=cfg.run.diffusion_scheduler,
-                                                             num_inference_steps=cfg.run.num_inference_steps,
-                                                             )
-            # segment and normalize human/object
-            bs = len(out_stage1)
-            pred_hum, pred_obj = [], [] # predicted human/object points
-            cent_hum_pred, cent_obj_pred = [], []
-            radius_hum_pred, radius_obj_pred = [], []
-            T_hum, T_obj = [], []
-            num_samples = int(cfg.dataset.max_points/2)
-            for i in range(bs):
-                pc: Pointclouds = out_stage1[i]
-                vc = pc.features_packed().cpu()  # (P, 3), human is light blue [0.1, 1.0, 1.0], object light green [0.5, 1.0, 0]
-                points = pc.points_packed().cpu()  # (P, 3)
-                mask_hum = vc[:, 2] > 0.5
-                pc_hum, pc_obj = points[mask_hum], points[~mask_hum]
-                # Up/Down-sample the points
-                pc_obj = self.upsample_predicted_pc(num_samples, pc_obj)
-                pc_hum = self.upsample_predicted_pc(num_samples, pc_hum)
-
-                # Normalize
-                cent_hum, cent_obj = torch.mean(pc_hum, 0, keepdim=True), torch.mean(pc_obj, 0, keepdim=True)
-                scale_hum = torch.sqrt(torch.sum((pc_hum - cent_hum)**2, -1).max())
-                scale_obj = torch.sqrt(torch.sum((pc_obj - cent_obj) ** 2, -1).max())
-                pc_hum = (pc_hum - cent_hum) / (2*scale_hum)
-                pc_obj = (pc_obj - cent_obj) / (2*scale_obj)
-                # Also update camera parameters for separate human + object
-                T_hum_scaled = (batch['T_ho'][i] + cent_hum.squeeze(0)) / (2 * scale_hum)
-                T_obj_scaled = (batch['T_ho'][i] + cent_obj.squeeze(0)) / (2 * scale_obj)
-
-                pred_hum.append(pc_hum)
-                pred_obj.append(pc_obj)
-                cent_hum_pred.append(cent_hum.squeeze(0))
-                cent_obj_pred.append(cent_obj.squeeze(0))
-                T_hum.append(T_hum_scaled*torch.tensor([-1, -1, 1])) # apply opencv to pytorch3d transform: flip x and y
-                T_obj.append(T_obj_scaled*torch.tensor([-1, -1, 1]))
-                radius_hum_pred.append(scale_hum)
-                radius_obj_pred.append(scale_obj)
-
-            # Pack data into a new batch dict
-            camera_hum = PerspectiveCameras(
-                R=torch.stack(batch['R']),
-                T=torch.stack(T_hum),
-                K=torch.stack(batch['K_hum']),
-                device='cuda',
-                in_ndc=True
-            )
-            camera_obj = PerspectiveCameras(
-                R=torch.stack(batch['R']),
-                T=torch.stack(T_obj),
-                K=torch.stack(batch['K_obj']),  # the camera should be human/object specific!!!
-                device='cuda',
-                in_ndc=True
-            )
-            # use pc from predicted
-            pc_hum = Pointclouds([x.to('cuda') for x in pred_hum])
-            pc_obj = Pointclouds([x.to('cuda') for x in pred_obj])
-            # use center and radius from predicted
-            cent_hum = torch.stack(cent_hum_pred, 0).to('cuda')
-            cent_obj = torch.stack(cent_obj_pred, 0).to('cuda')  # B, 3
-            radius_hum = torch.stack(radius_hum_pred, 0).to('cuda')  # B, 1
-            radius_obj = torch.stack(radius_obj_pred, 0).to('cuda')
-
-            out_stage2: Pointclouds = self.model_stage2.forward_sample(
-                                        num_points=num_samples,
-                                        camera=camera_hum,
-                                        image_rgb=torch.stack(batch['images_hum'], 0).to('cuda'),
-                                        mask=torch.stack(batch['masks_hum'], 0).to('cuda'),
-                                        gt_pc=pc_hum,
-                                        rgb_obj=torch.stack(batch['images_obj'], 0).to('cuda'),
-                                        mask_obj=torch.stack(batch['masks_obj'], 0).to('cuda'),
-                                        pc_obj=pc_obj,
-                                        camera_obj=camera_obj,
-                                        cent_hum=cent_hum,
-                                        cent_obj=cent_obj,
-                                        radius_hum=radius_hum.unsqueeze(-1),
-                                        radius_obj=radius_obj.unsqueeze(-1),
-                                        sample_from_interm=True,
-                                        noise_step=cfg.run.sample_noise_step)
 
             # save output
             for i in range(bs):
@@ -230,6 +157,103 @@ class DemoRunner:
                     imgs.extend([rend[0], rend[1]])
                     video_writer.append_data((np.concatenate(imgs, 1)*255).astype(np.uint8))
                 print(f"Visualization saved to {out_i}")
+
+    @torch.no_grad()
+    def forward_batch(self, batch, cfg):
+        """
+        forward one batch
+        :param batch:
+        :param cfg:
+        :return: predicted point clouds of stage 1 and 2
+        """
+        camera_full = PerspectiveCameras(
+            R=torch.stack(batch['R']),
+            T=torch.stack(batch['T']),
+            K=torch.stack(batch['K']),
+            device='cuda',
+            in_ndc=True)
+        out_stage1 = self.model_stage1.forward_sample(num_points=cfg.dataset.max_points,
+                                                      camera=camera_full,
+                                                      image_rgb=torch.stack(batch['images']).to('cuda'),
+                                                      mask=torch.stack(batch['masks']).to('cuda'),
+                                                      scheduler=cfg.run.diffusion_scheduler,
+                                                      num_inference_steps=cfg.run.num_inference_steps,
+                                                      )
+        # segment and normalize human/object
+        bs = len(out_stage1)
+        pred_hum, pred_obj = [], []  # predicted human/object points
+        cent_hum_pred, cent_obj_pred = [], []
+        radius_hum_pred, radius_obj_pred = [], []
+        T_hum, T_obj = [], []
+        num_samples = int(cfg.dataset.max_points / 2)
+        for i in range(bs):
+            pc: Pointclouds = out_stage1[i]
+            vc = pc.features_packed().cpu()  # (P, 3), human is light blue [0.1, 1.0, 1.0], object light green [0.5, 1.0, 0]
+            points = pc.points_packed().cpu()  # (P, 3)
+            mask_hum = vc[:, 2] > 0.5
+            pc_hum, pc_obj = points[mask_hum], points[~mask_hum]
+            # Up/Down-sample the points
+            pc_obj = self.upsample_predicted_pc(num_samples, pc_obj)
+            pc_hum = self.upsample_predicted_pc(num_samples, pc_hum)
+
+            # Normalize
+            cent_hum, cent_obj = torch.mean(pc_hum, 0, keepdim=True), torch.mean(pc_obj, 0, keepdim=True)
+            scale_hum = torch.sqrt(torch.sum((pc_hum - cent_hum) ** 2, -1).max())
+            scale_obj = torch.sqrt(torch.sum((pc_obj - cent_obj) ** 2, -1).max())
+            pc_hum = (pc_hum - cent_hum) / (2 * scale_hum)
+            pc_obj = (pc_obj - cent_obj) / (2 * scale_obj)
+            # Also update camera parameters for separate human + object
+            T_hum_scaled = (batch['T_ho'][i] + cent_hum.squeeze(0)) / (2 * scale_hum)
+            T_obj_scaled = (batch['T_ho'][i] + cent_obj.squeeze(0)) / (2 * scale_obj)
+
+            pred_hum.append(pc_hum)
+            pred_obj.append(pc_obj)
+            cent_hum_pred.append(cent_hum.squeeze(0))
+            cent_obj_pred.append(cent_obj.squeeze(0))
+            T_hum.append(T_hum_scaled * torch.tensor([-1, -1, 1]))  # apply opencv to pytorch3d transform: flip x and y
+            T_obj.append(T_obj_scaled * torch.tensor([-1, -1, 1]))
+            radius_hum_pred.append(scale_hum)
+            radius_obj_pred.append(scale_obj)
+        # Pack data into a new batch dict
+        camera_hum = PerspectiveCameras(
+            R=torch.stack(batch['R']),
+            T=torch.stack(T_hum),
+            K=torch.stack(batch['K_hum']),
+            device='cuda',
+            in_ndc=True
+        )
+        camera_obj = PerspectiveCameras(
+            R=torch.stack(batch['R']),
+            T=torch.stack(T_obj),
+            K=torch.stack(batch['K_obj']),  # the camera should be human/object specific!!!
+            device='cuda',
+            in_ndc=True
+        )
+        # use pc from predicted
+        pc_hum = Pointclouds([x.to('cuda') for x in pred_hum])
+        pc_obj = Pointclouds([x.to('cuda') for x in pred_obj])
+        # use center and radius from predicted
+        cent_hum = torch.stack(cent_hum_pred, 0).to('cuda')
+        cent_obj = torch.stack(cent_obj_pred, 0).to('cuda')  # B, 3
+        radius_hum = torch.stack(radius_hum_pred, 0).to('cuda')  # B, 1
+        radius_obj = torch.stack(radius_obj_pred, 0).to('cuda')
+        out_stage2: Pointclouds = self.model_stage2.forward_sample(
+            num_points=num_samples,
+            camera=camera_hum,
+            image_rgb=torch.stack(batch['images_hum'], 0).to('cuda'),
+            mask=torch.stack(batch['masks_hum'], 0).to('cuda'),
+            gt_pc=pc_hum,
+            rgb_obj=torch.stack(batch['images_obj'], 0).to('cuda'),
+            mask_obj=torch.stack(batch['masks_obj'], 0).to('cuda'),
+            pc_obj=pc_obj,
+            camera_obj=camera_obj,
+            cent_hum=cent_hum,
+            cent_obj=cent_obj,
+            radius_hum=radius_hum.unsqueeze(-1),
+            radius_obj=radius_obj.unsqueeze(-1),
+            sample_from_interm=True,
+            noise_step=cfg.run.sample_noise_step)
+        return out_stage1, out_stage2
 
     def upsample_predicted_pc(self, num_samples, pc_obj):
         """

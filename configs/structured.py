@@ -375,7 +375,7 @@ class ProjectConfig:
         'custom_hydra_run_dir',
         {'run': 'default'},
         {'logging': 'default'},
-        {'model': 'diffrec'},
+        {'model': 'ho-attn'},
         # {'dataset': 'co3d'},
         {'dataset': 'behave'},
         {'augmentations': 'default'},

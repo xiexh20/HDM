@@ -72,7 +72,6 @@ class CrossAttenHODiffusionModel(ConditionalPCDiffusionBehave):
         norm_parms = self.pack_norm_params(kwargs) # (2, B, 4)
 
         # get input conditioning
-        # TODO: try to remove image feature when points are not visible
         x_t_input_h, x_t_input_o = self.get_image_conditioning(camera, image_rgb, kwargs, mask, norm_parms, timestep,
                                                                xt_h, xt_o)
 

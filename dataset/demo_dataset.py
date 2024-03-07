@@ -98,36 +98,36 @@ class DemoDataset(BaseDataset):
         rgb_file = self.data_paths[idx]
         mask_hum, mask_obj = self.load_masks(rgb_file)
         rgb_full = cv2.imread(rgb_file)[:, :, ::-1]
+
+        return self.image2dict(mask_hum, mask_obj, rgb_full, rgb_file)
+
+    def image2dict(self, mask_hum, mask_obj, rgb_full, rgb_file=None):
+        "do all the necessary preprocessing for images"
         if rgb_full.shape[:2] != mask_obj.shape[:2]:
-            print(f"The given object mask shape {mask_obj.shape[:2]} does not match the RGB image shape {rgb_full.shape[:2]}")
-            raise ValueError()
+            raise ValueError(f"The given object mask shape {mask_obj.shape[:2]} does not match the RGB image shape {rgb_full.shape[:2]}")
         if rgb_full.shape[:2] != mask_hum.shape[:2]:
-            print(f"The given human mask shape {mask_hum.shape[:2]} does not match the RGB image shape {rgb_full.shape[:2]}")
-            raise ValueError()
+            raise ValueError(f"The given human mask shape {mask_hum.shape[:2]} does not match the RGB image shape {rgb_full.shape[:2]}")
 
         if rgb_full.shape[:2] not in [(1080, 1920), (1536, 2048)]:
             # crop and resize the image to behave image size
             print(f"Recropping the input image and masks for {rgb_file}")
             rgb_full, mask_hum, mask_obj = recrop_input(rgb_full, mask_hum, mask_obj)
         color_h, color_w = rgb_full.shape[:2]
-
         # Input to the first stage model: human + object crop
         Kroi, objmask_fullcrop, psmask_fullcrop, rgb_fullcrop = self.crop_full_image(mask_hum.copy(),
                                                                                      mask_obj.copy(),
                                                                                      rgb_full.copy(),
                                                                                      [mask_hum, mask_obj],
                                                                                      1.00)
-
         # Input to the second stage model: human and object crops
         Kroi_h, masko_hum, maskh_hum, rgb_hum = self.crop_full_image(mask_hum.copy(),
-                                                                  mask_obj.copy(),
-                                                                  rgb_full.copy(),
-                                                                  [mask_hum, mask_hum], 1.05)
+                                                                     mask_obj.copy(),
+                                                                     rgb_full.copy(),
+                                                                     [mask_hum, mask_hum], 1.05)
         Kroi_o, masko_obj, maskh_obj, rgb_obj = self.crop_full_image(mask_hum.copy(),
-                                                                  mask_obj.copy(),
-                                                                  rgb_full.copy(),
-                                                                  [mask_obj, mask_obj], 1.5)
-
+                                                                     mask_obj.copy(),
+                                                                     rgb_full.copy(),
+                                                                     [mask_obj, mask_obj], 1.5)
         # Estimate camera translation
         cent_transform = np.eye(4)  # the transform applied to the mesh that moves it back to kinect camera frame
         bmin_ho, bmax_ho = masks2bbox([mask_hum, mask_obj])
@@ -135,34 +135,30 @@ class DemoDataset(BaseDataset):
         if crop_size_ho % 2 == 1:
             crop_size_ho += 1  # make sure it is an even number
         is_behave = self.is_behave_dataset(rgb_full.shape[1])
-        assert rgb_full.shape[1] in [2048, 1920], 'the image is not normalized to BEHAVE or ICAP size!'
+        if rgb_full.shape[1] not in [2048, 1920]:
+            raise ValueError('the image is not normalized to BEHAVE or ICAP size!')
         indices = np.indices(rgb_full.shape[:2])
-        assert np.sum(mask_obj > 127) > 5, f'not enough object mask found for {rgb_file}'
+        if np.sum(mask_obj > 127) < 5:
+            raise ValueError(f'not enough object mask found for {rgb_file}')
         pts_h = np.stack([indices[1][mask_hum > 127], indices[0][mask_hum > 127]], -1)
         pts_o = np.stack([indices[1][mask_obj > 127], indices[0][mask_obj > 127]], -1)
-        proj_cent_est = (np.mean(pts_h, 0) + np.mean(pts_o, 0)) / 2. # heuristic to obtain 2d projection center
+        proj_cent_est = (np.mean(pts_h, 0) + np.mean(pts_o, 0)) / 2.  # heuristic to obtain 2d projection center
         transl_estimate = compute_translation(proj_cent_est, crop_size_ho, is_behave, self.std_coverage)
         cent_transform[:3, 3] = transl_estimate / 7.0
         radius = 0.5  # don't do normalization anymore
         cent = transl_estimate / 7.0
-
         comb = np.matmul(self.opencv2py3d, cent_transform)
         R = torch.from_numpy(comb[:3, :3]).float()
         T = torch.from_numpy(comb[:3, 3]).float() / (radius * 2)
-
-        ss = rgb_file.split(os.sep)
         data_dict = {
             "R": R,
             "T": T,
             "K": torch.from_numpy(Kroi).float(),
-            "T_ho": torch.from_numpy(cent).float(), # translation for H+O
+            "T_ho": torch.from_numpy(cent).float(),  # translation for H+O
             "image_path": rgb_file,
-            'view_id': DataPaths.get_kinect_id(rgb_file),
             "image_size_hw": torch.tensor(self.input_size),
             "images": torch.from_numpy(rgb_fullcrop).float().permute(2, 0, 1),
             "masks": torch.from_numpy(np.stack([psmask_fullcrop, objmask_fullcrop], 0)).float(),
-            "sequence_name": ss[-2],  # the frame name
-            "synset_id": ss[-3],
             'orig_image_size': torch.tensor([color_h, color_w]),
 
             # Human input to stage 2
@@ -180,7 +176,23 @@ class DemoDataset(BaseDataset):
             'radius': radius,
             "estimated_trans": transl_estimate,
         }
-
         return data_dict
+
+    def image2batch(self, rgb, mask_hum, mask_obj):
+        """
+        given input image, convert it into a batch object ready for model inference
+        :param rgb: (h, w, 3), np array
+        :param mask_hum: (h, w, 3), np array
+        :param mask_obj: (h, w, 3), np array
+        :return:
+        """
+        mask_hum = np.mean(mask_hum, -1)
+        mask_obj = np.mean(mask_obj, -1)
+
+        data_dict = self.image2dict(mask_hum, mask_obj, rgb, 'input image')
+        # convert dict to list
+        new_dict = {k:[v] for k, v in data_dict.items()}
+
+        return new_dict
 
 
