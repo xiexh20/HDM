@@ -65,8 +65,8 @@ class DemoRunner:
         self.rend_size = cfg.dataset.image_size
         self.device = 'cuda'
 
-    def load_checkpoint(self, ckpt_file1, model_stage1):
-        checkpoint = torch.load(ckpt_file1, map_location='cpu')
+    def load_checkpoint(self, ckpt_file1, model_stage1, device='cpu'):
+        checkpoint = torch.load(ckpt_file1, map_location=device)
         state_dict, key = checkpoint['model'], 'model'
         if any(k.startswith('module.') for k in state_dict.keys()):
             state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
@@ -77,6 +77,13 @@ class DemoRunner:
             print(f' - Missing_keys: {missing_keys}')
         if len(unexpected_keys):
             print(f' - Unexpected_keys: {unexpected_keys}')
+
+    def reload_checkpoint(self, cat_name):
+        "load checkpoint of models fine tuned on specific categories"
+        ckpt_file1 = hf_hub_download("xiexh20/HDM-models", f'{self.cfg.run.stage1_name}-{cat_name}.pth')
+        self.load_checkpoint(ckpt_file1, self.model_stage1, device=self.device)
+        ckpt_file2 = hf_hub_download("xiexh20/HDM-models", f'{self.cfg.run.stage2_name}-{cat_name}.pth')
+        self.load_checkpoint(ckpt_file2, self.model_stage2, device=self.device)
 
     @torch.no_grad()
     def run(self):
