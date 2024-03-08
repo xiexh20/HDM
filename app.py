@@ -130,10 +130,12 @@ def inference(runner: DemoRunner, cfg: ProjectConfig, rgb, mask_hum, mask_obj, s
                            out_stage1.features_packed().cpu().numpy()).export(
             outdir + f"/pred_std{std_coverage}_seed{input_seed}_stage1_{input_cls}.ply")
         log += 'Successfully reconstructed the image.'
+        outfile = outdir + f"/pred_std{std_coverage}_seed{input_seed}_stage2_{input_cls}.ply"
     except Exception as e:
         log = traceback.format_exc()
+        fig, outfile = None, None
 
-    return fig, outdir + f"/pred_std{std_coverage}_seed{input_seed}_stage2_{input_cls}.ply", log
+    return fig, outfile, log
 
 
 @hydra.main(config_path='configs', config_name='configs', version_base='1.1')
