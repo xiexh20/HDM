@@ -7,12 +7,6 @@ Official implementation for the HDM model of the CVPR24 paper: Template Free Rec
 <img src="https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/teaser_full_width.png" alt="teaser" width="70%"/>
 </p>
 
-
-- [x] Hugging face demo.
-- [ ] Google Colab demo.
-- [ ] Training and inference. 
-- [ ] Evaluation code. 
-
 ## For template based reconstruction please see: [CHORE](https://github.com/xiexh20/CHORE), [VisTracker](https://github.com/xiexh20/VisTracker). 
 
 ## Contents 
@@ -23,6 +17,12 @@ Official implementation for the HDM model of the CVPR24 paper: Template Free Rec
 5. [Citation](#citation)
 6. [Acknowledgements](#acknowledgements)
 7. [License](#license)
+
+### TODO List
+- [x] Hugging face demo.
+- [ ] Google Colab demo.
+- [ ] Training and inference. 
+- [ ] Evaluation code. 
 
 ## Dependencies
 The code is tested on `torch=1.12.1+cu113, cuda11.3, debian11`. We recommend using anaconda environment:
@@ -87,5 +87,5 @@ This project leverages the following excellent works, we thank the authors for o
 * The [diffusers](https://github.com/huggingface/diffusers) library. 
 * The [pc2](https://github.com/lukemelas/projection-conditioned-point-cloud-diffusion/tree/main) project.
 
-## Licence
+## License
 Please see [LICENSE](./LICENSE).

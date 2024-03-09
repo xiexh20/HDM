@@ -103,37 +103,9 @@ def compute_translation(crop_center, crop_size, is_behave=True, std_coverage=3.5
         fx, fy = 918.457763671875, 918.4373779296875
         cx, cy = 956.9661865234375, 555.944580078125
 
-    # construct the matrix
-    # A = np.array([
-    #     [fx, 0, cx-x0, cx-x0,  0,  0],
-    #     [0, fy, cy-y0, cy-y0,  0,  0],
-    #     [fx, 0, cx-x1,   0, cx-x1, 0],
-    #     [0, fy, cy-y1,   0, cy-y1, 0],
-    #     [fx, 0, cx-x2,   0,  0,    cx-x2],
-    #     [0, fy, cy-y2,   0,  0,    cy-y2]
-    # ]) # this matrix is low-rank because columns are linearly dependent: col3 - col4 = col5 + col6
-    # # find linearly dependent rows
-    # lambdas, V = np.linalg.eig(A)
-    # # print()
-    # # The linearly dependent row vectors
-    # print(lambdas == 0, np.linalg.det(A), A[lambdas == 0, :]) # some have determinant zero, some don't??
-    # print(np.linalg.inv(A))
-
-    # A = np.array([
-    #     [fx, 0, cx - x0, cx - x0, 0, 0],
-    #     [0, fy, cy - y0, cy - y0, 0, 0],
-    #     [fx, 0, cx - x1, 0, cx - x1, 0],
-    #     [0, fy, cy - y1, 0, cy - y1, 0],
-    #     [fx, 0, cx - x3, 0, 0, cx - x3],
-    #     [0, fy, cy - y3, 0, 0, cy - y3]
-    # ]) # this is also low rank!
-    # b = np.array([0, 0, -3*fx, 0, 0, -3*fy]).reshape((-1, 1))
-    # print("rank of the coefficient matrix:", np.linalg.matrix_rank(A))  # rank is 5! underconstrained matrix!
-    # x = np.matmul(np.linalg.inv(A), b)
-
-    # fix z0 as 0, then A is a full-rank matrix
-    # first two equations: origin (0, 0, 0) is projected to the crop center
-    # last two equations: edge point (3.5, 0, z) is projected to the edge of crop
+    # Construct the matrix
+    # First two equations: origin (0, 0, 0) is projected to the crop center
+    # Last two equations: edge point (std_coverage, 0, z) is projected to the edge of crop
     A = np.array([
         [fx, 0, cx-x0, cx-x0],
         [0, fy, cy-y0, cy-y0],
@@ -142,7 +114,7 @@ def compute_translation(crop_center, crop_size, is_behave=True, std_coverage=3.5
     ])
     # b = np.array([0, 0, -3.5*fx, 0]).reshape((-1, 1)) # 3.5->half of 7.0
     b = np.array([0, 0, -std_coverage * fx, 0]).reshape((-1, 1))  # 3.5->half of 7.0
-    x = np.matmul(np.linalg.inv(A), b) # use 4 or 5 does not really matter, same results
+    x = np.matmul(np.linalg.inv(A), b)
 
     # A is always a full-rank matrix
 
