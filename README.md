@@ -1,30 +1,12 @@
----
-title: Template Free Reconstruction of Human-object Interaction with Procedural Interaction Generation
-metaTitle: HDM
-emoji: 🤗
-colorFrom: yellow
-colorTo: green
-sdk: gradio
-sdk_version: 3.47.1
-python_version: 3.8
-app_file: app.py
-license: other
-pinned: false
----
-
 # Hierarchical Diffusion Model (CVPR'24)
 Official implementation for the HDM model of the CVPR24 paper: Template Free Reconstruction of Human-object Interaction with Procedural Interaction Generation
 
 [Project Page](https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/) | [Code](https://github.com/xiexh20/HDM) | [ProciGen Dataset](https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.2VUEUS ) | [Paper](https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/paper-lowreso.pdf)
 
 <p align="left">
-<img src="https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/gif_results.gif" alt="teaser" width="600"/>
+<img src="https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/teaser_full_width.png" alt="teaser" width="600"/>
 </p>
 
-<video width="600" controls>
-  <source src="https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/video_procigen.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
 
 - [x] Hugging face demo.
 - [ ] Google Colab demo.
