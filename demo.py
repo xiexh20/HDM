@@ -40,16 +40,17 @@ class DemoRunner:
         cfg.model.model_name, cfg.model.predict_binary = 'diff-ho-attn', False # stage 2 does not predict segmentation
         model_stage2 = CrossAttenHODiffusionModel(**cfg.model)
 
-        # Load from checkpoint
-        # ckpt_file1 = os.path.join(cfg.run.code_dir_abs, f'outputs/{cfg.run.stage1_name}/single/checkpoint-latest.pth')
-        # self.load_checkpoint(ckpt_file1, model_stage1)
-        # ckpt_file2 = os.path.join(cfg.run.code_dir_abs, f'outputs/{cfg.run.stage2_name}/single/checkpoint-latest.pth')
-        # self.load_checkpoint(ckpt_file2, model_stage2)
         # Load ckpt from hf
-        ckpt_file1 = hf_hub_download("xiexh20/HDM-models", f'{cfg.run.stage1_name}.pth')
-        self.load_checkpoint(ckpt_file1, model_stage1)
-        ckpt_file2 = hf_hub_download("xiexh20/HDM-models", f'{cfg.run.stage2_name}.pth')
-        self.load_checkpoint(ckpt_file2, model_stage2)
+        if cfg.run.input_cls == 'general':
+            ckpt_file1 = hf_hub_download("xiexh20/HDM-models", f'{cfg.run.stage1_name}.pth')
+            self.load_checkpoint(ckpt_file1, model_stage1)
+            ckpt_file2 = hf_hub_download("xiexh20/HDM-models", f'{cfg.run.stage2_name}.pth')
+            self.load_checkpoint(ckpt_file2, model_stage2)
+        else:
+            assert cfg.run.input_cls in ['backpack', 'ball', 'bottle', 'box',
+                                        'chair', 'skateboard', 'suitcase', 'table'], (f'no fine tuned models for '
+                                                                                      f'class {cfg.run.input_cls}')
+            self.reload_checkpoint(cfg.run.input_cls)
 
         self.model_stage1, self.model_stage2 = model_stage1, model_stage2
         self.model_stage1.eval()
@@ -107,6 +108,17 @@ class DemoRunner:
         progress_bar = tqdm(dataloader)
         for batch_idx, batch in enumerate(progress_bar):
             progress_bar.set_description(f'Processing batch {batch_idx:4d} / {len(dataloader):4d}')
+
+            for i in range(1):
+                image_path = str(batch['image_path'])
+                folder, fname = osp.basename(osp.dirname(image_path)), osp.splitext(osp.basename(image_path))[0]
+                out_i = osp.join(outdir, folder)
+                os.makedirs(out_i, exist_ok=True)
+                # save RGB and masks
+                cv2.imwrite(osp.join(out_i, 'k1.human_mask.png'), cv2.resize((batch['masks'][i][0].cpu().numpy()*255).astype(np.uint8), (800, 800)))
+                cv2.imwrite(osp.join(out_i, 'k1.obj_mask.png'), cv2.resize((batch['masks'][i][1].cpu().numpy() * 255).astype(np.uint8), (800, 800)))
+                print("Saved to", out_i)
+                exit(0)
 
             out_stage1, out_stage2 = self.forward_batch(batch, cfg)
 

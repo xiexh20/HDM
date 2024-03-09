@@ -31,9 +31,8 @@ from dataset.demo_dataset import DemoDataset
 
 md_description="""
 # HDM Interaction Reconstruction Demo
-### Official Implementation of the paper \"Template Free Reconstruction of Human Object Interaction\", CVPR'24.
+### Official Demo of the paper \"Template Free Reconstruction of Human Object Interaction\", CVPR'24.
 [Project Page](https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/)|[Code](https://github.com/xiexh20/HDM)|[Dataset](https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.2VUEUS )|[Paper](https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/paper-lowreso.pdf)
-
 
 Upload your own human object interaction image and get full 3D reconstruction!
 
@@ -47,6 +46,42 @@ Upload your own human object interaction image and get full 3D reconstruction!
     year = {2024},
 }
 ```
+"""
+citation_str = """
+## Citation
+```
+@inproceedings{xie2023template_free,
+    title = {Template Free Reconstruction of Human-object Interaction with Procedural Interaction Generation},
+    author = {Xie, Xianghui and Bhatnagar, Bharat Lal and Lenssen, Jan Eric and Pons-Moll, Gerard},
+    booktitle = {IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+    month = {June},
+    year = {2024},
+}
+"""
+
+html_str = """
+<h2 style="text-align:center; color:#10768c">HDM Demo: Upload your own human object interaction image and get full 3D reconstruction!</h2>
+<h3 style="text-align:center; color:#10768c">Official Demo of "Template Free Reconstruction of Human Object Interaction with Procedural Generation", CVPR'24. </h3>
+<h3 style="text-align:center; color:#10768c"><a href="https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/" target="_blank">Project Page</a> | 
+    <a href="https://github.com/xiexh20/HDM" target="_blank">Code</a> | 
+    <a href="https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.2VUEUS" target="_blank">ProciGen Dataset</a> | 
+    <a href="https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/paper-lowreso.pdf" target="_blank">Paper</a>    
+</h3>
+
+<p style="text-align:left; color:#10768c">Instruction:
+<ol>
+    <li>Upload an RGB image of human object interaction.</li>
+    <li>Upload the mask for the human and object that you want to reconstruct. You can use these methods to obtain the masks: 
+                <a href="https://segment-anything.com/demo" target="_blank">SAM</a>, 
+                <a href="https://huggingface.co/spaces/sam-hq-team/sam-hq" target="_blank">SAM-HQ</a>,
+                <a href="https://huggingface.co/spaces/An-619/FastSAM" target="_blank">FastSAM</a>.</li>
+    <li>Click `Start Reconstruction` to start.</li>
+    <li>You can view the result at `Reconstructed point cloud` and download the point cloud at `download results`. </li>
+</ol>
+Alternatively, you can click one of the examples below and start reconstruction. 
+</p>
+<p>More example results can be found in our <a href="https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/" target="_blank">Project Page</a>.</p>
+<p>Have fun! </p>
 """
 
 def plot_points(colors, coords):
@@ -143,17 +178,10 @@ def main(cfg: ProjectConfig):
     # Setup model
     runner = DemoRunner(cfg)
 
-    # runner = None # without model initialization, it shows one line of thumbnail
-    # TODO: add instructions on how to get masks
-    # TODO: add instructions on how to use the demo, input output, example outputs etc.
-
     # Setup interface
     demo = gr.Blocks(title="HDM Interaction Reconstruction Demo")
     with demo:
-        gr.Markdown(md_description)
-        gr.HTML("""<h1 style="text-align:center; color:#10768c">HDM Demo</h1>""")
-        gr.HTML("""<h3 style="text-align:center; color:#10768c">Instruction: Upload RGB, human, object masks and then click reconstruct.</h1>""")
-
+        gr.HTML(html_str)
         # Input data
         with gr.Row():
             input_rgb = gr.Image(label='Input RGB', type='numpy')
@@ -161,20 +189,25 @@ def main(cfg: ProjectConfig):
         with gr.Row():
             input_mask_obj = gr.Image(label='Object mask', type='numpy')
             with gr.Column():
-                # TODO: add hint for this value here
-                input_std = gr.Number(label='Gaussian std coverage', value=3.5)
-                input_seed = gr.Number(label='Random seed', value=42)
-                # TODO: add description outside label
-                input_cls = gr.Dropdown(label='Object category (we have fine tuned the model for specific categories, '
-                                              'reconstructing with these model should lead to better result '
-                                              'for specific categories.) ',
+                input_std = gr.Number(label='Gaussian std coverage', value=3.5,
+                                      info="This value is used to estimate camera translation to project the points."
+                                           "The larger value, the camera is farther away. It is category-dependent. "
+                                           "We empirically found these values are suitable: backpack-3.5, ball-3.0, bottle-3.0,"
+                                           "box-3.5, chair-3.8, skateboard-3.0, suitcase-3.2, table-3.5. "
+                                           "If you are not sure, 3.5 is a good start point.")
+                input_cls = gr.Dropdown(label='Object category',
+                                        info='We fine tuned the model for some specific categories. '
+                                             'Reconstructing using these models should lead to better result '
+                                             'for these specific categories. Simply select the category that '
+                                             'fits the object from input image.',
                                         choices=['general', 'backpack', 'ball', 'bottle', 'box',
                                                  'chair', 'skateboard', 'suitcase', 'table'],
                                         value='general')
+                input_seed = gr.Number(label='Random seed', value=42)
         # Output visualization
         with gr.Row():
             pc_plot = gr.Plot(label="Reconstructed point cloud")
-            out_pc_download = gr.File(label="3D reconstruction for download") # this allows downloading
+            out_pc_download = gr.File(label="Download results") # this allows downloading
         with gr.Row():
             out_log = gr.TextArea(label='Output log')
 
@@ -192,15 +225,18 @@ def main(cfg: ProjectConfig):
         rgb, ps, obj = 'k1.color.jpg', 'k1.person_mask.png', 'k1.obj_rend_mask.png'
         example_images = gr.Examples([
             [f"{example_dir}/017450/{rgb}", f"{example_dir}/017450/{ps}", f"{example_dir}/017450/{obj}", 3.0, 42, 'skateboard'],
-            [f"{example_dir}/002446/{rgb}", f"{example_dir}/002446/{ps}", f"{example_dir}/002446/{obj}", 3.0, 42, 'ball'],
+            [f"{example_dir}/205904/{rgb}", f"{example_dir}/205904/{ps}", f"{example_dir}/205904/{obj}", 3.2, 42, 'suitcase'],
+            [f"{example_dir}/066241/{rgb}", f"{example_dir}/066241/{ps}", f"{example_dir}/066241/{obj}", 3.5, 42, 'backpack'],
             [f"{example_dir}/053431/{rgb}", f"{example_dir}/053431/{ps}", f"{example_dir}/053431/{obj}", 3.8, 42, 'chair'],
             [f"{example_dir}/158107/{rgb}", f"{example_dir}/158107/{ps}", f"{example_dir}/158107/{obj}", 3.8, 42, 'chair'],
 
         ], inputs=[input_rgb, input_mask_hum, input_mask_obj, input_std, input_seed, input_cls],)
 
+        gr.Markdown(citation_str)
+
     # demo.launch(share=True)
     # Enabling queue for runtime>60s, see: https://github.com/tloen/alpaca-lora/issues/60#issuecomment-1510006062
-    demo.queue().launch(share=True)
+    demo.queue().launch(share=cfg.run.share)
 
 if __name__ == '__main__':
     main()

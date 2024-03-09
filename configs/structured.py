@@ -35,6 +35,8 @@ class RunConfig:
     stage1_name: str = 'stage1'     # experiment name to the stage 1 model
     stage2_name: str = 'stage2'     # experiment name to the stage 2 model
     image_path: str = ''            # the path to the images for running demo, can be a single file or a glob pattern
+    share: bool = False             # whether to run gradio with a temporal public url or not
+    input_cls: str = 'general'
 
     # abs path to working dir
     code_dir_abs: str = osp.dirname(osp.dirname(osp.abspath(__file__)))
