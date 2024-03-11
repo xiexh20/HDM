@@ -19,7 +19,7 @@ Official implementation for the HDM model of the CVPR24 paper: Template Free Rec
 7. [License](#license)
 
 ### TODO List
-- [x] Hugging face demo.
+- [x] Hugging face and Gradio demo.
 - [ ] Google Colab demo.
 - [ ] Training and inference. 
 - [ ] Evaluation code. 
