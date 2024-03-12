@@ -1,7 +1,7 @@
 # Hierarchical Diffusion Model (CVPR'24)
 Official implementation for the HDM model of the CVPR24 paper: Template Free Reconstruction of Human-object Interaction with Procedural Interaction Generation
 
-[Project Page](https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/) | [ProciGen Dataset](https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.2VUEUS ) | [Paper](https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/paper-lowreso.pdf)
+[Project Page](https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/) | [ProciGen Dataset](https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.2VUEUS ) | [Paper](https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/paper-lowreso.pdf) | <a href="https://huggingface.co/spaces/xiexh20/HDM-interaction-recon"  style='padding-left: 0.5rem;'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-orange'></a><br></br>
 
 <p align="left">
 <img src="https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/teaser_full_width.png" alt="teaser" width="70%"/>
