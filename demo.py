@@ -1,7 +1,11 @@
 """
 Demo for template-free reconstruction
 
-python demo.py model=ho-attn run.image_path=/BS/xxie-2/work/HDM/outputs/000000017450/k1.color.jpg run.job=sample model.predict_binary=True dataset.std_coverage=3.0
+Usage: python demo.py model=ho-attn run.image_path=examples/017450/k1.color.jpg run.job=sample model.predict_binary=True dataset.std_coverage=3.0
+
+Author: Xianghui Xie
+Date: March 27, 2024
+Cite: Template Free Reconstruction of Human-object Interaction with Procedural Interaction Generation
 """
 import pickle as pkl
 import sys, os

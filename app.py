@@ -1,5 +1,9 @@
 """
 Demo built with gradio
+
+Author: Xianghui Xie
+Date: March 27, 2024
+Cite: Template Free Reconstruction of Human-object Interaction with Procedural Interaction Generation
 """
 import pickle as pkl
 import sys, os

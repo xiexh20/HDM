@@ -7,9 +7,6 @@ import os.path as osp
 import cv2, json
 import numpy as np
 
-# PROCESSED_PATH = paths['PROCESSED_PATH']
-BEHAVE_PATH = "/BS/xxie-5/static00/behave_release/sequences/"
-RECON_PATH = "/BS/xxie-5/static00/behave-train"
 
 class DataPaths:
     """
@@ -22,8 +19,6 @@ class DataPaths:
     def load_splits(split_file, dataset_path=None):
         assert os.path.exists(dataset_path), f'the given dataset path {dataset_path} does not exist, please check if your training data are placed over there!'
         train, val = DataPaths.get_train_test_from_pkl(split_file)
-        return train, val
-        # print(train[:5], val[:5])
         if isinstance(train[0], list):
             # video data
             train_full = [[join(dataset_path, seq[x]) for x in range(len(seq))] for seq in train]
@@ -31,21 +26,14 @@ class DataPaths:
         else:
             train_full = [join(dataset_path, x) for x in train] # full path to the training data
             val_full = [join(dataset_path, x) for x in val] # full path to the validation data files
-        # print(train_full[:5], val_full[:5])
+
         return train_full, val_full
 
     @staticmethod
-    def load_splits_online(split_file, dataset_path=BEHAVE_PATH):
-        "load rgb file, smpl and object mesh paths"
-        keys = ['rgb', 'smpl', 'obj']
-        types = ['train', 'val']
-        splits = {}
-        data = pkl.load(open(split_file, 'rb'))
-        for type in types:
-            for key in keys:
-                k = f'{type}_{key}'
-                splits[k] = [join(dataset_path, x) for x in data[k]]
-        return splits
+    def load_splits_abs(split_file):
+        "the file path stored in split_file is abs path"
+        train, val = DataPaths.get_train_test_from_pkl(split_file)
+        return train, val
 
     @staticmethod
     def get_train_test_from_pkl(pkl_file):
@@ -157,28 +145,12 @@ class DataPaths:
     def get_seq_name(rgb_file):
         return osp.basename(osp.dirname(osp.dirname(rgb_file)))
 
-    @staticmethod
-    def rgb2template_path(rgb_file):
-        "return the path to the object template"
-        from recon.opt_utils import get_template_path
-        # seq_name = DataPaths.get_seq_name(rgb_file)
-        # obj_name = seq_name.split('_')[2]
-        obj_name = DataPaths.rgb2object_name(rgb_file)
-        path = get_template_path(BEHAVE_PATH+"/../objects", obj_name)
-        return path
 
     @staticmethod
     def rgb2object_name(rgb_file):
         seq_name = DataPaths.get_seq_name(rgb_file)
         obj_name = seq_name.split('_')[2]
         return obj_name
-
-    @staticmethod
-    def rgb2recon_frame(rgb_file, recon_path=RECON_PATH):
-        "return the frame folder in recon path"
-        ss = rgb_file.split(os.sep)
-        seq_name, frame = ss[-3], ss[-2]
-        return osp.join(recon_path, seq_name, frame)
 
     @staticmethod
     def rgb2gender(rgb_file):
@@ -201,20 +173,19 @@ class DataPaths:
 
 ICAP_PATH = "/BS/xxie-6/static00/InterCap" # assume same root folder
 date_seqs = {
-    "Date01": BEHAVE_PATH + "/Date01_Sub01_backpack_back",
-    "Date02": BEHAVE_PATH + "/Date02_Sub02_backpack_back",
-    "Date03": BEHAVE_PATH + "/Date03_Sub03_backpack_back",
-    "Date04": BEHAVE_PATH + "/Date04_Sub05_backpack",
-    "Date05": BEHAVE_PATH + "/Date05_Sub05_backpack",
-    "Date06": BEHAVE_PATH + "/Date06_Sub07_backpack_back",
-    "Date07": BEHAVE_PATH + "/Date07_Sub04_backpack_back",
-    # "Date08": "/BS/xxie-6/static00/synthesize/Date08_Subxx_chairwood_synzv2-02",
-    "Date08": "/BS/xxie-6/static00/synz-backup/Date08_Subxx_chairwood_synzv2-02",
-    "Date09": "/BS/xxie-6/static00/synthesize/Date09_Subxx_obj01_icap", # InterCap sequence synz
-    "ICapS01": ICAP_PATH + "/ICapS01_sub01_obj01_Seg_0",
-    "ICapS02": ICAP_PATH + "/ICapS02_sub01_obj08_Seg_0",
-    "ICapS03": ICAP_PATH + "/ICapS03_sub07_obj05_Seg_0",
+    "Date01": lambda behave_path: behave_path + "/Date01_Sub01_backpack_back",
+    "Date02": lambda behave_path: behave_path + "/Date02_Sub02_backpack_back",
+    "Date03": lambda behave_path: behave_path + "/Date03_Sub03_backpack_back",
+    "Date04": lambda behave_path: behave_path + "/Date04_Sub05_backpack",
+    "Date05": lambda behave_path: behave_path + "/Date05_Sub05_backpack",
+    "Date06": lambda behave_path: behave_path + "/Date06_Sub07_backpack_back",
+    "Date07": lambda behave_path: behave_path + "/Date07_Sub04_backpack_back",
+    "Date09": lambda procigen_path: procigen_path + "/Date09_Subxx_obj01_icap", # InterCap sequence synz
+    # "ICapS01": ICAP_PATH + "/ICapS01_sub01_obj01_Seg_0",
+    # "ICapS02": ICAP_PATH + "/ICapS02_sub01_obj08_Seg_0",
+    # "ICapS03": ICAP_PATH + "/ICapS03_sub07_obj05_Seg_0",
 }
+
 
 _sub_gender = {
 "Sub01": 'male',

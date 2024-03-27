@@ -16,6 +16,8 @@ from pytorch3d.implicitron.tools.config import expand_args_fields
 from pytorch3d.renderer.cameras import CamerasBase
 from torch.utils.data import DataLoader
 from pytorch3d.datasets import R2N2, collate_batched_meshes
+import pickle as pkl
+import os.path as osp
 
 from configs.structured import CO3DConfig, DataloaderConfig, ProjectConfig, Optional
 from .utils import DatasetMap
@@ -101,7 +103,7 @@ def get_dataset(cfg: ProjectConfig):
         dataloader_val.batch_sampler.drop_last = False
     elif cfg.dataset.type == 'shapenet_r2n2':
         # from ..configs.structured import ShapeNetR2N2Config
-        from .r2n2_my import R2N2Sample
+        from .r2n2_dataset import R2N2Sample
         dataset_cfg: ShapeNetR2N2Config = cfg.dataset
         # for k in dataset_cfg:
         #     print(k)
@@ -120,29 +122,20 @@ def get_dataset(cfg: ProjectConfig):
                                       collate_fn=collate_batched_meshes,
                                     num_workers=cfg.dataloader.num_workers, shuffle=False)
 
-    elif cfg.dataset.type in ['behave', 'behave-objonly', 'behave-humonly', 'behave-dtransl',
-                              'behave-objonly-segm', 'behave-humonly-segm', 'behave-attn',
-                              'behave-test', 'behave-attn-test', 'behave-hum-pe', 'behave-hum-noscale',
-                              'behave-hum-surf', 'behave-objv2v']:
-        from .behave_dataset import BehaveDataset, NTUDataset, BehaveObjOnly, BehaveHumanOnly, BehaveHumanOnlyPosEnc
-        from .behave_dataset import BehaveHumanOnlySegmInput, BehaveObjOnlySegmInput, BehaveTestOnly, BehaveHumNoscale
-        from .behave_dataset import BehaveHumanOnlySurfSample
-        from .dtransl_dataset import DirectTranslDataset
+    elif cfg.dataset.type in ['behave', 'behave-attn']:
+        from .behave_dataset import BehaveDataset, BehaveTestOnly
         from .behave_paths import DataPaths
         from configs.structured import BehaveDatasetConfig
         from .behave_crossattn import BehaveCrossAttnDataset, BehaveCrossAttnTest
-        from .behave_dataset import BehaveObjOnlyV2V
 
         dataset_cfg: BehaveDatasetConfig = cfg.dataset
-        # print(dataset_cfg.behave_dir)
-        train_paths, val_paths = DataPaths.load_splits(dataset_cfg.split_file, dataset_cfg.behave_dir)
-        # exit(0)
+        d = pkl.load(open(pkl_file, 'rb'))
+        train_paths, val_paths = [osp.join(dataset_cfg.procigen_dir, x) for x in d['train']], [osp.join(dataset_cfg.behave_dir, x) for x in d['test']]
 
-        # split validation paths to only consider the selected batches
+        # split validation/test paths to only consider the selected batches
         bs = cfg.dataloader.batch_size
         num_batches_total = int(np.ceil(len(val_paths)/cfg.dataloader.batch_size))
         end_idx = cfg.run.batch_end if cfg.run.batch_end is not None else num_batches_total
-        # print(cfg.run.batch_end, cfg.run.batch_start, end_idx)
         val_paths = val_paths[cfg.run.batch_start*bs:end_idx*bs]
 
         if cfg.dataset.type == 'behave':
@@ -151,45 +144,12 @@ def get_dataset(cfg: ProjectConfig):
         elif cfg.dataset.type == 'behave-test':
             train_type = BehaveDataset
             val_datatype = BehaveTestOnly
-        elif cfg.dataset.type == 'behave-objonly':
-            train_type = BehaveObjOnly
-            val_datatype = BehaveObjOnly
-            assert 'ntu' not in dataset_cfg.split_file, 'ntu not implemented!'
-        elif cfg.dataset.type == 'behave-humonly':
-            train_type = BehaveHumanOnly
-            val_datatype = BehaveHumanOnly
-            assert 'ntu' not in dataset_cfg.split_file, 'ntu not implemented!'
-        elif cfg.dataset.type == 'behave-hum-noscale':
-            train_type = BehaveHumNoscale
-            val_datatype = BehaveHumNoscale
-        elif cfg.dataset.type == 'behave-hum-pe':
-            train_type = BehaveHumanOnlyPosEnc
-            val_datatype = BehaveHumanOnlyPosEnc
-        elif cfg.dataset.type == 'behave-hum-surf':
-            train_type = BehaveHumanOnlySurfSample
-            val_datatype = BehaveHumanOnlySurfSample
-        elif cfg.dataset.type == 'behave-humonly-segm':
-            assert cfg.dataset.ho_segm_pred_path is not None, 'please specify predicted HO segmentation!'
-            train_type = BehaveHumanOnly
-            val_datatype = BehaveHumanOnlySegmInput
-            assert 'ntu' not in dataset_cfg.split_file, 'ntu not implemented!'
-        elif cfg.dataset.type == 'behave-objonly-segm':
-            assert cfg.dataset.ho_segm_pred_path is not None, 'please specify predicted HO segmentation!'
-            train_type = BehaveObjOnly
-            val_datatype = BehaveObjOnlySegmInput
-            assert 'ntu' not in dataset_cfg.split_file, 'ntu not implemented!'
-        elif cfg.dataset.type == 'behave-dtransl':
-            train_type = DirectTranslDataset
-            val_datatype = DirectTranslDataset
         elif cfg.dataset.type == 'behave-attn':
             train_type = BehaveCrossAttnDataset
             val_datatype = BehaveCrossAttnDataset
         elif cfg.dataset.type == 'behave-attn-test':
             train_type = BehaveCrossAttnDataset
             val_datatype = BehaveCrossAttnTest
-        elif cfg.dataset.type == 'behave-objv2v':
-            train_type = BehaveObjOnlyV2V
-            val_datatype = BehaveObjOnlyV2V
         else:
             raise NotImplementedError
 
@@ -197,50 +157,31 @@ def get_dataset(cfg: ProjectConfig):
                                    (dataset_cfg.image_size, dataset_cfg.image_size),
                                    split='train', sample_ratio_hum=dataset_cfg.sample_ratio_hum,
                                   normalize_type=dataset_cfg.normalize_type, smpl_type='gt',
-                                     load_corr_points=dataset_cfg.load_corr_points,
-                                     uniform_obj_sample=dataset_cfg.uniform_obj_sample,
+                                  uniform_obj_sample=dataset_cfg.uniform_obj_sample,
                                   bkg_type=dataset_cfg.bkg_type,
-                                  bbox_params=dataset_cfg.bbox_params,
                                   pred_binary=cfg.model.predict_binary,
                                   ho_segm_pred_path=cfg.dataset.ho_segm_pred_path,
-                                  compute_closest_points=cfg.model.model_name=='pc2-diff-ho-tune-newloss',
-                                  use_gt_transl=cfg.dataset.use_gt_transl,
                                   cam_noise_std=cfg.dataset.cam_noise_std,
                                   sep_same_crop=cfg.dataset.sep_same_crop,
                                   aug_blur=cfg.dataset.aug_blur,
                                   std_coverage=cfg.dataset.std_coverage,
-                                   v2v_path=cfg.dataset.v2v_path)
-
+                                   behave_path=dataset_cfg.behave_dir,
+                                   procigen_path=dataset_cfg.procigen_dir)
+        # we do cross validation, the validation set is a random subset of full test set
         dataset_val = val_datatype(val_paths, dataset_cfg.max_points, dataset_cfg.fix_sample,
                                       (dataset_cfg.image_size, dataset_cfg.image_size),
                                       split='val', sample_ratio_hum=dataset_cfg.sample_ratio_hum,
                                       normalize_type=dataset_cfg.normalize_type, smpl_type=dataset_cfg.smpl_type,
-                                    load_corr_points=dataset_cfg.load_corr_points,
                                    test_transl_type=dataset_cfg.test_transl_type,
                                    uniform_obj_sample=dataset_cfg.uniform_obj_sample,
                                    bkg_type=dataset_cfg.bkg_type,
-                                  bbox_params=dataset_cfg.bbox_params,
                                    pred_binary=cfg.model.predict_binary,
                                    ho_segm_pred_path=cfg.dataset.ho_segm_pred_path,
-                                   compute_closest_points=cfg.model.model_name=='pc2-diff-ho-tune-newloss',
-                                   use_gt_transl=cfg.dataset.use_gt_transl,
                                    sep_same_crop=cfg.dataset.sep_same_crop,
                                    std_coverage=cfg.dataset.std_coverage,
-                                   v2v_path=cfg.dataset.v2v_path)
-        # dataset_test = val_datatype(val_paths, dataset_cfg.max_points, dataset_cfg.fix_sample,
-        #                             (dataset_cfg.image_size, dataset_cfg.image_size),
-        #                             split='test', sample_ratio_hum=dataset_cfg.sample_ratio_hum,
-        #                             normalize_type=dataset_cfg.normalize_type, smpl_type=dataset_cfg.smpl_type,
-        #                              load_corr_points=dataset_cfg.load_corr_points,
-        #                             test_transl_type=dataset_cfg.test_transl_type,
-        #                             uniform_obj_sample=dataset_cfg.uniform_obj_sample,
-        #                             bkg_type=dataset_cfg.bkg_type,
-        #                           bbox_params=dataset_cfg.bbox_params,
-        #                             pred_binary=cfg.model.predict_binary,
-        #                             ho_segm_pred_path=cfg.dataset.ho_segm_pred_path,
-        #                             compute_closest_points=cfg.model.model_name=='pc2-diff-ho-tune-newloss',
-        #                             use_gt_transl=cfg.dataset.use_gt_transl,
-        #                             sep_same_crop=cfg.dataset.sep_same_crop)
+                                   behave_path=dataset_cfg.behave_dir,
+                                   procigen_path=dataset_cfg.procigen_dir
+                                   )
         dataloader_train = DataLoader(dataset_train, batch_size=cfg.dataloader.batch_size,
                                       collate_fn=collate_batched_meshes,
                                       num_workers=cfg.dataloader.num_workers, shuffle=True)
@@ -251,21 +192,6 @@ def get_dataset(cfg: ProjectConfig):
         dataloader_vis = DataLoader(dataset_val, batch_size=cfg.dataloader.batch_size,
                                     collate_fn=collate_batched_meshes,
                                     num_workers=cfg.dataloader.num_workers, shuffle=shuffle)
-
-        # datasets = [BehaveDataset(p, dataset_cfg.max_points, dataset_cfg.fix_sample,
-        #                            (dataset_cfg.image_size, dataset_cfg.image_size),
-        #                            split=s, sample_ratio_hum=dataset_cfg.sample_ratio_hum,
-        #                           normalize_type=dataset_cfg.normalize_type) for p, s in zip([train_paths, val_paths, val_paths],
-        #                                                                                                     ['train', 'val', 'test'])]
-        # dataloader_train = DataLoader(datasets[0], batch_size=cfg.dataloader.batch_size,
-        #                               collate_fn=collate_batched_meshes,
-        #                               num_workers=cfg.dataloader.num_workers, shuffle=True)
-        # dataloader_val = DataLoader(datasets[1], batch_size=cfg.dataloader.batch_size,
-        #                             collate_fn=collate_batched_meshes,
-        #                             num_workers=cfg.dataloader.num_workers, shuffle=False)
-        # dataloader_vis = DataLoader(datasets[2], batch_size=cfg.dataloader.batch_size,
-        #                             collate_fn=collate_batched_meshes,
-        #                             num_workers=cfg.dataloader.num_workers, shuffle=False)
     elif cfg.dataset.type in ['shape']:
         from .shape_dataset import ShapeDataset
         from .behave_paths import DataPaths

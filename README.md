@@ -21,8 +21,8 @@ Official implementation for the HDM model of the CVPR24 paper: Template Free Rec
 ### TODO List
 - [x] Hugging face and Gradio demo.
 - [ ] Google Colab demo.
-- [ ] Training and inference. 
-- [ ] Evaluation code. 
+- [x] Training and inference. 
+- [x] Evaluation code. 
 
 ## Dependencies
 The code is tested on `torch=1.12.1+cu113, cuda11.3, debian11`. We recommend using anaconda environment:
@@ -73,7 +73,7 @@ We mainly train our model on synthetic ProciGen dataset and test on real BEHAVE 
 Once downloaded, modify `behave_dir` and `procigen_dir` in `configs/structured.py` to your local path.  
 
 #### Pre-process data
-We provide a split file including all images from ProciGen and test images from BEHAVE, [download here](https://edmond.mpg.de/file.xhtml?fileId=247856&version=2.1). 
+We provide a split file including all image names from ProciGen and test image names from BEHAVE, [download here](https://edmond.mpg.de/file.xhtml?fileId=247856&version=2.1). 
 
 To train stage 1 segmentation model, you will need to precompute the occupancy of human and object. We provide processed data for ProciGen [here](https://edmond.mpg.de/file.xhtml?fileId=247856&version=2.1). Download and unzip the file. 
 Then you can run `python scripts/process_occ.py -o <unzipped occ files> -p <ProciGen path>` to process the downloaded occupancy file. 
@@ -86,10 +86,13 @@ We train our stage 1 and stage 2 models separately in parallel to reduce trainin
 
 ## Evaluation
 #### Pre-trained checkpoints
-We provide checkpoints for models trained only on synthetic ProciGen, download them from [here](https://datasets.d2.mpi-inf.mpg.de/cvpr24procigen/pretrained.zip).
+We provide checkpoints for models trained only on synthetic ProciGen, download them from [here](https://datasets.d2.mpi-inf.mpg.de/cvpr24procigen/pretrained.zip). 
+
+Unzip the file and place them under folder `outputs`.
 
 #### Run inference on BEHAVE test set
-We provide example command to run batch inference at `scripts/test.sh`. Similar to training, the two stages are also run separately to reduce runtime.  
+We provide example command to run batch inference at `scripts/test.sh`. Similar to training, the two stages are also run separately to reduce runtime. The example commands are 
+configured to run inference on the pretrained checkpoints. 
 
 #### Evaluate results 
 After inference is done, results can be evaluated with: 

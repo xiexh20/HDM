@@ -144,20 +144,6 @@ class CrossAttnHOModelConfig(PointCloudDiffusionModelConfig):
     point_visible_test: str = 'combine'  # To compute point visibility: use all points or only human/object points
 
 
-@dataclass
-class DirectTransModelConfig(PointCloudProjectionModelConfig):
-    model_name: str = 'direct-transl-ho'
-
-    pooling: str = "avg"
-    act: str = 'gelu'
-    out_act: str = 'relu'
-    # feat_dims_transl: Iterable[Any] = (384, 256, 128, 6) # cannot use List[int] https://github.com/facebookresearch/hydra/issues/1752#issuecomment-893174197
-    # feat_dims_scale: Iterable[Any] = (384, 128, 64, 2)
-    feat_dims_transl: List[int] = field(default_factory=lambda: [384, 256, 128, 6])
-    feat_dims_scale: List[int] = field(default_factory=lambda: [384, 128, 64, 2])
-    lw_transl: float = 10000.0
-    lw_scale: float = 10000.0
-
 
 @dataclass
 class PointCloudColoringModelConfig(PointCloudProjectionModelConfig):
@@ -219,7 +205,8 @@ class BehaveDatasetConfig(PointCloudDatasetConfig):
     type: str = 'behave'
 
     fix_sample: bool = True
-    behave_dir: str = "/BS/xxie-5/static00/behave_release/sequences/"
+    behave_dir: str = "/BS/xxie-5/static00/behave_release/sequences/" # TODO: change to your local BEHAVE path
+    procigen_dir: str = '/BS/xxie-6/static00/synthesize' # TODO: change to your local ProciGen path
     split_file: str = "" # specify you dataset split file here
     scale_factor: float = 7.0  # use the same as shapenet
     sample_ratio_hum: float = 0.5
@@ -397,7 +384,6 @@ cs.store(group='run', name='default', node=RunConfig)
 cs.store(group='logging', name='default', node=LoggingConfig)
 cs.store(group='model', name='diffrec', node=PointCloudDiffusionModelConfig)
 cs.store(group='model', name='coloring_model', node=PointCloudColoringModelConfig)
-cs.store(group='model', name='direct-transl', node=DirectTransModelConfig)
 cs.store(group='model', name='ho-attn', node=CrossAttnHOModelConfig)
 cs.store(group='model', name='pvcnn-ae', node=PVCNNAEModelConfig)
 cs.store(group='dataset', name='co3d', node=CO3DConfig)
