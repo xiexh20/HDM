@@ -129,6 +129,8 @@ def get_dataset(cfg: ProjectConfig):
         from .behave_crossattn import BehaveCrossAttnDataset, BehaveCrossAttnTest
 
         dataset_cfg: BehaveDatasetConfig = cfg.dataset
+        # pkl_file specifies the image paths without the root path, it can be downloaded from https://edmond.mpg.de/file.xhtml?fileId=251365&version=4.0
+        pkl_file = cfg.dataset.split_file
         d = pkl.load(open(pkl_file, 'rb'))
         train_paths, val_paths = [osp.join(dataset_cfg.procigen_dir, x) for x in d['train']], [osp.join(dataset_cfg.behave_dir, x) for x in d['test']]
 
