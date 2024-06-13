@@ -393,7 +393,7 @@ class Trainer(object):
                                             disable_tqdm=(not accelerator.is_main_process),
                                             noise_step=cfg.run.sample_noise_step,
                                             w_joint=w_joint, w_sep=w_sep, # for combined diffusion model
-                                            early_stop=cfg.run.early_stop, # for rebuttal
+                                            eta=cfg.model.ddim_eta,
                                             )
                 output: Pointclouds
                 all_outputs: List[Pointclouds]  # list of B Pointclouds, each with a batch size of return_sample_every_n_steps
@@ -464,7 +464,7 @@ class Trainer(object):
                 "pred_scale": np.array([scale_hum, scale_obj])
             }
             outfile = filestr.format(dir='pred', category=sequence_category, name=sequence_name, ext='pkl')
-            print(f"{torch.sum(mask_hum)}/{len(points)} human points")
+            # print(f"{torch.sum(mask_hum)}/{len(points)} human points")
             pkl.dump(out, open(outfile, 'wb'))
 
             # save gt

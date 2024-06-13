@@ -121,8 +121,7 @@ class DemoRunner:
                 # save RGB and masks
                 cv2.imwrite(osp.join(out_i, 'k1.human_mask.png'), cv2.resize((batch['masks'][i][0].cpu().numpy()*255).astype(np.uint8), (800, 800)))
                 cv2.imwrite(osp.join(out_i, 'k1.obj_mask.png'), cv2.resize((batch['masks'][i][1].cpu().numpy() * 255).astype(np.uint8), (800, 800)))
-                print("Saved to", out_i)
-                exit(0)
+                print("Preprocessed images saved to", out_i)
 
             out_stage1, out_stage2 = self.forward_batch(batch, cfg)
 
@@ -153,8 +152,7 @@ class DemoRunner:
                                 image_path=batch['image_path'][i])
                 torch.save(metadata, osp.join(out_i, f'{fname}_meta.pth'))
 
-                # Visualize
-                # front_camera = camera_full[i]
+                # Visualize: compare stage 1 and stage 2 outputs side by side
                 pc_comb = Pointclouds([out_stage1[i].points_packed(), out_stage2[i].points_packed()],
                                       features=[out_stage1[i].features_packed(), out_stage2[i].features_packed()])
                 video_file = osp.join(out_i, f'{fname}_360view.mp4')
@@ -166,6 +164,7 @@ class DemoRunner:
                 comb = np.concatenate([batch['images'][i].permute(1, 2, 0).cpu().numpy(), rend_stage1, rend_stage2], 1)
                 video_writer.append_data((comb*255).astype(np.uint8))
 
+                # Render rotating view
                 for azim in range(180, 180+360, 30):
                     R, T = look_at_view_transform(1.7, 0, azim, up=((0, -1, 0),), )
                     side_camera = PerspectiveCameras(image_size=((self.rend_size, self.rend_size),),
@@ -201,6 +200,7 @@ class DemoRunner:
                                                       mask=torch.stack(batch['masks']).to('cuda'),
                                                       scheduler=cfg.run.diffusion_scheduler,
                                                       num_inference_steps=cfg.run.num_inference_steps,
+                                                      eta=cfg.model.ddim_eta,
                                                       )
         # segment and normalize human/object
         bs = len(out_stage1)
@@ -275,7 +275,11 @@ class DemoRunner:
             radius_hum=radius_hum.unsqueeze(-1),
             radius_obj=radius_obj.unsqueeze(-1),
             sample_from_interm=True,
-            noise_step=cfg.run.sample_noise_step)
+            noise_step=cfg.run.sample_noise_step,
+            scheduler=cfg.run.diffusion_scheduler,
+            num_inference_steps=cfg.run.num_inference_steps,
+            eta=cfg.model.ddim_eta,
+        )
         return out_stage1, out_stage2
 
     def upsample_predicted_pc(self, num_samples, pc_obj):

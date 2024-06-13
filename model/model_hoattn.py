@@ -11,6 +11,7 @@ import numpy as np
 
 from pytorch3d.structures import Pointclouds
 from pytorch3d.renderer import CamerasBase
+from diffusers.schedulers import DDPMScheduler, DDIMScheduler
 from .model_diff_data import ConditionalPCDiffusionBehave
 from .pvcnn.pvcnn_ho import PVCNN2HumObj
 import torch.nn.functional as F
@@ -375,17 +376,30 @@ class CrossAttenHODiffusionModel(ConditionalPCDiffusionBehave):
 
         return (output, all_outputs) if return_all_outputs else output
 
-    def get_reverse_timesteps(self, scheduler, interm_steps:int):
+    def get_reverse_timesteps(self, scheduler, interm_steps: int):
         """
-
+        get the timesteps to run reverse diffusion
         :param scheduler:
-        :param interm_steps: start from some intermediate steps
+        :param interm_steps: start from some intermediate steps, the step number is for DDPM scheduler
+            if DDIM, will be recomputed accordingly
         :return:
         """
-        if interm_steps > 0:
-            timesteps = torch.from_numpy(np.arange(0, interm_steps)[::-1].copy()).to(self.device)
+        if isinstance(scheduler, DDPMScheduler):
+            # DDPM, directly reverse N steps from interm_steps
+            if interm_steps > 0:
+                timesteps = torch.from_numpy(np.arange(0, interm_steps)[::-1].copy()).to(self.device)
+            else:
+                timesteps = scheduler.timesteps.to(self.device)
+        elif isinstance(scheduler, DDIMScheduler):
+            if interm_steps > 0:
+                # compute a step ratio, and find the intermediate steps for DDIM
+                step_ratio = scheduler.config.num_train_timesteps // scheduler.num_inference_steps
+                timesteps = (np.arange(0, interm_steps, step_ratio)).round()[::-1].copy().astype(np.int64)
+                timesteps = torch.from_numpy(timesteps).to(self.device)
+            else:
+                timesteps = scheduler.timesteps.to(self.device)
         else:
-            timesteps = scheduler.timesteps.to(self.device)
+            raise NotImplementedError
         return timesteps
 
     def pack_norm_params(self, kwargs:dict, scale=True):

@@ -12,7 +12,6 @@ from typing import Iterable, Optional
 from accelerate import Accelerator
 from tqdm import tqdm
 
-from model import DirectPredModel
 
 sys.path.append(os.getcwd())
 import hydra

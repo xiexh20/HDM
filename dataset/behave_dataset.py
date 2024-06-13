@@ -104,13 +104,13 @@ class BehaveDataset(Dataset):
 
         self.ho_segm_pred_path = ho_segm_pred_path
         assert self.smpl_type == 'gt', f'must use GT SMPL mesh instead of {self.smpl_type}'
-        assert self.test_transl_type == 'estimated-2d', f'only support estimated-2d estimation instead of {self.test_transl_type}'
+        # assert self.test_transl_type == 'estimated-2d', f'only support estimated-2d estimation instead of {self.test_transl_type}'
         self.cam_noise_std = cam_noise_std
         self.sep_same_crop = sep_same_crop
         print("Use the same crop as input to separate models?", sep_same_crop)
 
         self.aug_blur = aug_blur # random blurness augmentation
-        print(f"Aug_blur value={aug_blur}...")
+        # print(f"Aug_blur value={aug_blur}...")
 
         self.DEBUG = debug
 

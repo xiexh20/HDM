@@ -128,6 +128,7 @@ class PointCloudDiffusionModelConfig(PointCloudProjectionModelConfig):
     beta_end: float = 8e-3  # 0.012
     beta_schedule: str = 'linear'  # 'custom'
     dm_pred_type: str = 'epsilon'  # diffusion model prediction type, sample (x0) or noise
+    ddim_eta: float = 1.0  # DDIM eta parameter: 0 is the default one which does deterministic generation
 
     # Point cloud model arguments
     point_cloud_model: str = 'pvcnn'
