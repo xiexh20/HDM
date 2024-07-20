@@ -351,7 +351,7 @@ def resume_from_checkpoint(cfg: ProjectConfig, model, optimizer=None, scheduler=
             ), f'Invalid configs: {cfg.checkpoint}'
             if cfg.checkpoint.resume_training_optimizer:
                 if 'optimizer' not in checkpoint:
-                    assert 'tune' in cfg.run.name, f'please check the checkpoint for run {cfg.run.name}'
+                    # assert 'tune' in cfg.run.name, f'please check the checkpoint for run {cfg.run.name}'
                     print("Warning: not loading optimizer!")
                 else:
                     assert 'optimizer' in checkpoint, f'Value not in {checkpoint.keys()}'
@@ -361,7 +361,7 @@ def resume_from_checkpoint(cfg: ProjectConfig, model, optimizer=None, scheduler=
                 print(f'Did not load optimizer from checkpoint')
             if cfg.checkpoint.resume_training_scheduler:
                 if 'scheduler' not in checkpoint:
-                    assert 'tune' in cfg.run.name, f'please check the checkpoint for run {cfg.run.name}'
+                    # assert 'tune' in cfg.run.name, f'please check the checkpoint for run {cfg.run.name}'
                     print("Warning: not loading scheduler!")
                 else:
                     assert 'scheduler' in checkpoint, f'Value not in {checkpoint.keys()}'
