@@ -207,6 +207,8 @@ class BehaveDataset(Dataset):
             cent = transl_estimate / 7.0
             # print(f"Estimated 2d: {proj_cent_est}, 3D: {transl_estimate/7.}")
 
+        cent_transform[:3, 3] = cent # make sure the points have correct translation
+
         comb = np.matmul(self.opencv2py3d, cent_transform)
         R = torch.from_numpy(comb[:3, :3]).float()
         T = torch.from_numpy(comb[:3, 3]).float() / (radius * 2)
