@@ -209,7 +209,7 @@ class SingleShapeEvaluator(ShapeEvaluator):
 
     @staticmethod
     def get_parser():
-        parser = SingleShapeEvaluator.get_parser()
+        parser = ShapeEvaluator.get_parser()
         parser.add_argument('-split', default='configs/splits/behave-test.json')
         parser.add_argument('-i', '--id', help='additional information/identification')
         return parser
